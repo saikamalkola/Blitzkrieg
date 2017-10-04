@@ -20,7 +20,7 @@ uint8_t damage = 5;  //damage that can be done using this gun
 uint8_t hp = max_hp;  //health of the player
 uint8_t ammo = max_ammo;  //ammunition of the player gun
 
-boolean friendly_fire = 0;
+boolean friendly_fire = 1;
 boolean new_game = false;
 IRrecv irrecv(rx_pin);
 decode_results results;
