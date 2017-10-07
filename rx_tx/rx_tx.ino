@@ -21,7 +21,9 @@ uint8_t hp = max_hp;  //health of the player
 uint8_t ammo = max_ammo;  //ammunition of the player gun
 
 boolean friendly_fire = 1;
-boolean new_game = false;
+int new_game = 0,time_up = 0;
+
+String esp_data;
 IRrecv irrecv(rx_pin);
 decode_results results;
 
@@ -43,30 +45,52 @@ void setup()
 
 void loop()
 {
-  if(Serial.available() > 0)
+  if (Serial.available() > 0)
   {
-    if(Serial.read() == '1')
-    new_game = 1;
+    esp_data = Serial.readStringUntil('\n');
+    parse_data();
+
   }
-  if(new_game == true)
+  if (new_game == 1)
   {
     hp = max_hp;
+    time_up = 0;
     ammo = max_ammo;
-    new_game = false;
+    new_game = 0;
     update_EE();
   }
- // Serial.println("reset:" + String(new_game) + " " + String(hp) + " " + String(ammo));
+  //Serial.println("time up:" + String(time_up) +"reset:" + String(new_game) + " " + String(hp) + " " + String(ammo));
   hit_data = 0;
-  tx_rx_check();
+  if(time_up != 1)
+  {
+    tx_rx_check();
+  }
 }
 
+void parse_data()
+{
+  int l = esp_data.length(), k = 0;
+  int limits[100];
+  for (int i = 0; i < l - 1 ; i++)
+  {
+    if (esp_data[i] == '#')
+    {
+      limits[k] = i + 1;
+      k++;
+    }
+  }
+  String temp = esp_data.substring(limits[0], limits[1] - 1);
+  new_game = temp.toInt();
+  temp = esp_data.substring(limits[1], limits[2] - 1);
+  time_up = temp.toInt();
+}
 void player_hit()
 {
   if (friendly_fire == 1)
   {
     hp -= hit_msg;
-    Serial.print("hp: ");
-    Serial.println(hp);
+    //Serial.print("hp: ");
+    //Serial.println(hp);
     if (hp > max_hp || hp == 0)
     {
       hp = 0;
@@ -76,8 +100,8 @@ void player_hit()
   else if (team_id != hit_team)
   {
     hp -= hit_msg;
-    Serial.print("hp: ");
-    Serial.println(hp);
+    //Serial.print("hp: ");
+    //Serial.println(hp);
     if (hp > max_hp || hp == 0)
     {
       hp = 0;
@@ -91,7 +115,7 @@ void decode_rx_data()
   hit_id = (hit_data & 0xF000) >> 12;
   hit_team = hit_id / 7;
   hit_msg = (hit_data & 0x0F00) >> 8;
-  Serial.println("team id: " + (String)hit_team + " player id: " + (String)hit_id + " message: " + (String)hit_msg);
+  //Serial.println("team id: " + (String)hit_team + " player id: " + (String)hit_id + " message: " + (String)hit_msg);
 }
 
 void got_hit()
@@ -117,7 +141,7 @@ void got_hit()
 
 void player_dead()
 {
-  Serial.println("player dead!!!");
+  //Serial.println("player dead!!!");
   tone(buzzer_pin, 50);
   delay(1000);
   noTone(buzzer_pin);
@@ -126,7 +150,7 @@ void player_dead()
 
 void ammo_over()
 {
-  Serial.println("Ammo Over!!");
+  //Serial.println("Ammo Over!!");
   tone(buzzer_pin, 50);
   delay(100);
   noTone(buzzer_pin);
@@ -135,8 +159,8 @@ void ammo_over()
 
 void update_EE()
 {
-  EEPROM.write(0,hp);
-  EEPROM.write(1,ammo);
+  EEPROM.write(0, hp);
+  EEPROM.write(1, ammo);
 }
 void tx_rx_check()
 {
@@ -147,37 +171,39 @@ void tx_rx_check()
     button_state = digitalRead(trigger_pin);
     if (button_state == LOW && lastbutton_state == HIGH)
     {
-      if(ammo > 0 && hp > 0)
+      if (ammo > 0 && hp > 0)
       {
         ammo--;
+        Serial.println("#" + (String)hp + "#" + (String)ammo);
         update_EE();
-      Serial.println("Pressed, sending");
-      irsend.sendNEC(data, 16);
-      delay(50); // Wait a bit
-      irrecv.enableIRIn();
-    }
-    else if(ammo <= 0)
-    {
-      ammo_over();
-    }
-    else
-    {
-      player_dead();
-    }
+        //Serial.println("Pressed, sending");
+        irsend.sendNEC(data, 16);
+        delay(50); // Wait a bit
+        irrecv.enableIRIn();
+      }
+      else if (ammo <= 0)
+      {
+        ammo_over();
+      }
+      else
+      {
+        player_dead();
+      }
     }
   }
   else if (irrecv.decode(&results)) {
     hit_data = results.value;
     if (hit_data & 0xFFFF00FF)
     {
-      Serial.println("Wrong data");
+      //Serial.println("Wrong data");
     }
     else
     {
       got_hit();
+      Serial.println("#" + (String)hp + "#" + (String)ammo + "#");
       tone(buzzer_pin, 100);
       digitalWrite(13, HIGH);
-      Serial.println(hit_data, HEX);
+      //Serial.println(hit_data, HEX);
       delay(50);
       digitalWrite(13, LOW);
       noTone(buzzer_pin);
@@ -194,5 +220,5 @@ void prepare_data()
   data = 0;
   data |= (damage << 8);
   data |= (player_id << 12);
-  Serial.println(data, HEX);
+  //Serial.println(data, HEX);
 }
